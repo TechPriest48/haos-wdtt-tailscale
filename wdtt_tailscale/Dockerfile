@@ -2,13 +2,15 @@
 # PIN is the commit referenced by upstream's OpenWrt installer.
 ARG BUILD_FROM=alpine:3.22
 FROM golang:1.25-alpine AS build
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache git ca-certificates python3
 ARG WDTT_REF=b10e1506f17322061ae9ccd7546ca6fd015776ce
 RUN git init /tmp/upstream \
   && cd /tmp/upstream \
   && git remote add origin https://github.com/cWDTT/WDTT-OpenWRT.git \
   && git fetch --depth=1 origin "${WDTT_REF}" \
   && git checkout --detach FETCH_HEAD
+COPY patch_upstream.py /tmp/patch_upstream.py
+RUN python3 /tmp/patch_upstream.py /tmp/upstream/wdtt-client/src/internal/wg/openwrt.go
 WORKDIR /tmp/upstream/wdtt-client/src
 RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/wdttd ./cmd/wdttd
 
