@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 — security hotfix
+
+- The web UI override file is now created with permissions 0600 **before** writing
+  the WDTT password and VK hashes.
+- Added a regression test for override file permissions (24 Python tests).
+- Version bumped so HAOS can offer an update from 0.4.0.
+
 ## 0.4.0 — security and routing hardening (unverified on HAOS)
 
 - Patch pinned upstream WDTT so `routing_mode=external` does not add any
