@@ -1,0 +1,27 @@
+name: WDTT HAOS validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Python tests and Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Python unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Python compilation
+        run: python3 -m compileall -q wdtt_tailscale tests
+      - name: Check panel JavaScript syntax
+        run: node --check wdtt_tailscale/web/app.js
+      - name: Build WDTT HAOS add-on image (amd64)
+        run: docker build --progress=plain -f wdtt_tailscale/Dockerfile --build-arg BUILD_FROM=alpine:3.22 -t wdtt-haos:test wdtt_tailscale
