@@ -1,11 +1,12 @@
 name: "WDTT Tailscale Gateway (experimental)"
-slug: "wdtt_tailscale_gateway"
-version: "0.3.0"
+slug: "wdtt_tailscale"
+version: "0.3.1"
 description: "WDTT tunnel with opt-in policy routing for Tailscale transport on HAOS"
 url: "https://github.com/TechPriest48/haos-wdtt-tailscale"
 arch:
   - aarch64
   - amd64
+stage: experimental
 startup: services
 boot: auto
 init: false
