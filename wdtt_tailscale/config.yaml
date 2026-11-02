@@ -1,0 +1,58 @@
+name: "WDTT Tailscale Gateway (experimental)"
+slug: "wdtt_tailscale_gateway"
+version: "0.3.0"
+description: "WDTT tunnel with opt-in policy routing for Tailscale transport on HAOS"
+url: "https://github.com/TechPriest48/haos-wdtt-tailscale"
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+init: false
+host_network: true
+ingress: true
+ingress_port: 8765
+panel_title: WDTT
+panel_icon: mdi:shield-lock
+privileged:
+  - NET_ADMIN
+  - NET_RAW
+# Local custom add-on: host networking and routing require a permissive profile.
+# Do not expose to untrusted users.
+apparmor: false
+options:
+  connection_mode: "off"
+  peer: ""
+  password: ""
+  vk_hashes: ""
+  device_id: "haos-wdtt-01"
+  workers: 9
+  mtu: 1240
+  turn_transport: "udp"
+  obfs_mode: "audio"
+  vk_auth_mode: "vkcalls"
+  go_dns: "doh-yandex"
+  probe_hosts: "controlplane.tailscale.com,login.tailscale.com,derp1.tailscale.com"
+  check_interval: 20
+  failure_threshold: 3
+  recovery_seconds: 300
+  route_tailscale: false
+  route_ipv6_block: true
+schema:
+  connection_mode: list(off|always|auto)
+  peer: str
+  password: password
+  vk_hashes: str
+  device_id: str
+  workers: int(9,108)
+  mtu: int(1100,1420)
+  turn_transport: list(udp|tcp)
+  obfs_mode: list(audio|video)
+  vk_auth_mode: list(vkcalls|legacy)
+  go_dns: list(doh-yandex|doh-cloudflare|yandex)
+  probe_hosts: str
+  check_interval: int(10,300)
+  failure_threshold: int(1,15)
+  recovery_seconds: int(60,3600)
+  route_tailscale: bool
+  route_ipv6_block: bool

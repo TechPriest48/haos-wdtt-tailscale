@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b1b20">
+  <meta name="description" content="WDTT клиент для Home Assistant OS: TURN, Tailscale и диагностика">
+  <title>WDTT — Home Assistant</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brandmark">✦</span><div><strong>WDTT</strong><small>CLIENT · HAOS</small></div></div>
+      <span class="chip" id="headerStatus"><span class="dot"></span> Проверка…</span>
+    </header>
+
+    <section class="view active" id="view-tunnel" aria-labelledby="tunnel-title">
+      <h1 id="tunnel-title">Настройки туннеля</h1>
+      <div class="status-card"><span class="status-icon">◈</span><div><strong id="connectionText">Проверка подключения…</strong><p id="connectionDesc">VPN работает отдельно от Home Assistant</p></div><span class="status-dot" id="statusDot"></span></div>
+      <form id="tunnelForm" class="stack">
+        <section class="card stack" aria-label="Сервер и хеши">
+          <div class="field-row split-server">
+            <label>IP сервера или домен (без порта)<input name="server_host" id="serverHost" placeholder="vpn.example.org" spellcheck="false" autocomplete="off" required></label>
+            <label>Порт<input name="server_port" id="serverPort" type="number" min="1" max="65535" placeholder="56000" required></label>
+          </div>
+          <button id="editHashes" type="button" class="large-action secondary">＃ <span id="hashAction">Настройка VK хешей (0/4)</span><span class="chevron">›</span></button>
+          <div id="hashPanel" class="hash-panel hidden">
+            <p class="help">Введи от 1 до 4 ссылок VK Call Join или готовых хешей. Уже сохранённые значения здесь не отображаются. Заполнение заменит набор целиком.</p>
+            <div class="hash-grid">
+              <label>VK хеш 1<input class="hash-field" data-hash="1" placeholder="Ссылка или хеш №1" autocomplete="off" spellcheck="false"></label>
+              <label>VK хеш 2<input class="hash-field" data-hash="2" placeholder="Необязательно" autocomplete="off" spellcheck="false"></label>
+              <label>VK хеш 3<input class="hash-field" data-hash="3" placeholder="Необязательно" autocomplete="off" spellcheck="false"></label>
+              <label>VK хеш 4<input class="hash-field" data-hash="4" placeholder="Необязательно" autocomplete="off" spellcheck="false"></label>
+            </div>
+          </div>
+        </section>
+        <section class="card stack" aria-label="Режим подключения">
+          <div class="strength-head"><label for="workers">Мощность</label><output id="workersValue">9</output></div>
+          <input id="workers" type="range" min="9" max="108" step="9" name="workers" value="9">
+          <div class="divider"></div>
+          <div class="setting"><span>Режим</span><div class="pills" role="group" aria-label="Режим авторизации VK"><button type="button" data-auth="vkcalls">Вызов</button><button type="button" data-auth="legacy">Капча</button></div></div>
+          <div class="setting"><span>Маскировка</span><div class="pills" role="group" aria-label="Маскировка"><button type="button" data-obfs="audio">Аудио</button><button type="button" data-obfs="video">Видео</button></div></div>
+          <div class="divider"></div>
+          <div class="setting"><span>Транспорт TURN</span><div class="pills" role="group" aria-label="Транспорт TURN"><button type="button" data-transport="udp">UDP</button><button type="button" data-transport="tcp">TCP</button></div></div>
+          <p class="help" id="authNote">«Вызов» — стандартный VKCalls. Режим «Капча» экспериментальный, может потребовать ручного подтверждения.</p>
+          <details class="advanced"><summary>Дополнительные параметры</summary><div class="grid-two"><label>MTU<input type="number" name="mtu" min="1100" max="1420"></label><label>DNS для VK API<select name="go_dns"><option value="doh-yandex">DoH Яндекс</option><option value="doh-cloudflare">DoH Cloudflare</option><option value="yandex">Яндекс DNS</option></select></label></div></details>
+        </section>
+        <div class="button-grid"><button id="secretsJump" type="button" class="large-action outline">⚿ <span>Секреты</span></button><button id="connectButton" class="large-action primary" type="submit">⏻ <span>Сохранить и подключить</span></button></div>
+        <div class="mode-picker" role="group" aria-label="Режим VPN"><button type="button" data-mode="off">Выкл</button><button type="button" data-mode="auto">Авто</button><button type="button" data-mode="always">Всегда</button></div>
+        <p class="footnote">Для мобильной сети: если «Вызов» недоступен, попробуй «Капча». TCP может помочь при нестабильном UDP. Автоматический режим определяет сетевые ограничения по проверкам соединений.</p>
+      </form>
+    </section>
+
+    <section class="view" id="view-deploy" aria-labelledby="deploy-title" hidden>
+      <h1 id="deploy-title">Настройки сервера</h1>
+      <section class="card stack"><p class="help">Этот аддон — <strong>клиент</strong> для уже работающего VPS. Он не выполняет установку или удаление сервера по SSH. Данные VPS и личный секрет остаются в приватных настройках HAOS.</p>
+        <form id="serverForm" class="stack">
+          <label>Секрет / пароль WDTT <span id="pwHint" class="tiny-note"></span><div class="password-row"><input type="password" name="password" autocomplete="new-password" placeholder="Оставь пустым, чтобы сохранить прежний"><button id="showPassword" type="button" class="mini" aria-label="Показать пароль">◉</button></div></label>
+          <label>Постоянный Device ID<input name="device_id" autocomplete="off" spellcheck="false" placeholder="haos-wdtt-01"></label>
+          <button class="large-action secondary" type="submit">⚿ <span>Сохранить секреты</span></button>
+        </form>
+      </section>
+      <section class="card stack"><h2>Информация о подключении</h2><div class="stat-line"><span>Адрес VPS</span><strong id="serverPreview">Не задан</strong></div><div class="stat-line"><span>Туннель</span><strong>WireGuard over TURN/DTLS</strong></div><div class="stat-line"><span>Протокол</span><strong>WDTT</strong></div><p class="help">SSH-логин и SSH-пароль здесь не нужны: сервер уже настроен и не меняется.</p></section>
+    </section>
+
+    <section class="view" id="view-exclusions" aria-labelledby="exclusions-title" hidden>
+      <h1 id="exclusions-title">Исключения</h1>
+      <section class="card stack"><h2>Только трафик Tailscale</h2><p class="help">Остальной трафик Home Assistant, Supervisor и интеграций остаётся на стандартном маршруте через мобильный роутер.</p>
+        <form id="routingForm" class="stack">
+          <label class="toggle"><span>Маршрутизация Tailscale через WDTT<small>Не включай до проверки поднятого туннеля и локального доступа к HAOS.</small></span><input type="checkbox" role="switch" name="route_tailscale"></label>
+          <label class="toggle"><span>Защита IPv6<small>Блокировать обход по IPv6 для маркированных пакетов Tailscale.</small></span><input type="checkbox" role="switch" name="route_ipv6_block"></label>
+          <div class="divider"></div><h2>Белые списки мобильной сети</h2>
+          <label>Проверяемые адреса (через запятую)<textarea name="probe_hosts" rows="2" spellcheck="false"></textarea></label>
+          <div class="grid-two"><label>Интервал, сек.<input name="check_interval" type="number" min="10" max="300"></label><label>Неудач до включения<input name="failure_threshold" type="number" min="1" max="15"></label></div>
+          <label>Ожидание восстановления, сек.<input name="recovery_seconds" type="number" min="60" max="3600"></label>
+          <button class="large-action primary" type="submit">Сохранить настройки</button>
+        </form>
+      </section>
+      <section class="card"><div class="stat-line"><span>Туннель</span><strong id="tunnelState">—</strong></div><div class="stat-line"><span>Трафик Tailscale</span><strong id="routeState">—</strong></div><div class="stat-line"><span>Интерфейс tailscale0</span><strong id="tsState">—</strong></div></section>
+    </section>
+
+    <section class="view" id="view-logs" aria-labelledby="logs-title" hidden>
+      <div class="page-title"><h1 id="logs-title">Лог событий</h1><div class="toolbar"><button class="tool-button" type="button" id="clearLogs" title="Очистить отображение">▤</button><button class="tool-button" type="button" id="copyLogs" title="Скопировать">▢</button></div></div>
+      <section class="card"><label class="toggle"><span>Активное логирование<small>Обновлять журнал, пока эта вкладка открыта</small></span><input type="checkbox" role="switch" id="liveLogs" checked></label></section>
+      <pre class="log-box" id="logText" aria-live="polite">Пока нет событий.</pre>
+      <section class="card stack" aria-label="Диагностический терминал"><div class="page-title"><h2>Терминал диагностики</h2><span class="chip">Только чтение</span></div><p class="help">Безопасные проверки в контейнере аддона. Произвольный shell и команды с изменением системы запрещены.</p>
+        <label>Проверка<select id="diagnosticCommand"><option value="client">Статус WDTT</option><option value="tailscale">Интерфейс Tailscale</option><option value="tunnel">Интерфейс туннеля</option><option value="wireguard">WireGuard</option><option value="rules">Правила маршрутизации</option><option value="routing-table">Таблица 7477</option><option value="route-check">Маршрут с меткой Tailscale</option><option value="interfaces">Все интерфейсы</option></select></label>
+        <button id="runDiagnostic" class="large-action secondary" type="button">⌁ <span>Выполнить проверку</span></button><pre class="terminal" id="terminalText">Выберите проверку…</pre>
+      </section>
+    </section>
+
+    <section class="view" id="view-info" aria-labelledby="info-title" hidden>
+      <h1 id="info-title">Информация</h1>
+      <section class="card stack"><h2>WDTT Tailscale Gateway</h2><p>Клиент WDTT для Home Assistant OS, использующий существующий VPS. В автоматическом режиме может переводить транспорт Tailscale через WDTT.</p><div class="stat-line"><span>Версия</span><strong>0.3.0 experimental</strong></div><div class="stat-line"><span>Тип</span><strong>Клиент HAOS</strong></div><div class="stat-line"><span>Проверка состояния</span><strong id="updated">—</strong></div><a href="https://github.com/TechPriest48/haos-wdtt-tailscale" target="_blank" rel="noopener noreferrer">Исходный код на GitHub ↗</a></section>
+      <section class="card"><h2>Безопасность</h2><p class="help">Аддон экспериментальный и получает NET_ADMIN. Включай маршрутизацию лишь при наличии локального доступа к Home Assistant. Пароли и VK-хеши не включаются в публичный репозиторий и не выводятся интерфейсом после сохранения.</p></section>
+    </section>
+
+    <nav class="bottom-nav" aria-label="Навигация WDTT">
+      <button type="button" class="selected" data-tab="tunnel"><span class="nav-icon">⚿</span>Туннель</button>
+      <button type="button" data-tab="deploy"><span class="nav-icon">☁</span>Деплой</button>
+      <button type="button" data-tab="exclusions"><span class="nav-icon">☰</span>Исключ.</button>
+      <button type="button" data-tab="logs"><span class="nav-icon">▣</span>Логи</button>
+      <button type="button" data-tab="info"><span class="nav-icon">ⓘ</span>Инфо</button>
+    </nav>
+    <div id="toast" class="toast hidden" role="status"></div>
+  </main>
+</body>
+</html>
