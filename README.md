@@ -1,4 +1,4 @@
-# WDTT Tailscale Gateway для Home Assistant OS — экспериментальная сборка 0.3.0
+# WDTT Tailscale Gateway для Home Assistant OS — экспериментальная сборка 0.3.1
 
 ## Что внутри
 
@@ -14,33 +14,46 @@ VPS.** Python-контроллер протестирован локально; 
 AppArmor/capabilities, сборка Go при установке и подключение к вашему VPS пока
 не проверены. НЕ использовать как единственный способ удалённого доступа.
 
-## Установка в HAOS
+## Установка из GitHub (рекомендуется)
 
-1. Сделайте резервную копию Home Assistant; проверьте локальный доступ к HAOS
-   через IP из домашней сети, минуя Tailscale.
-2. Распакуйте **папку** `wdtt_tailscale` из ZIP в `/addons/wdtt_tailscale/` на HAOS
-   (например, через SSH/Samba). `config.yaml` должен оказаться по пути
-   `/addons/wdtt_tailscale/config.yaml`.
-3. Home Assistant → Настройки → Дополнения (или Приложения) → Магазин →
-   меню ⋮ → **Проверить обновления**. Появится локальное дополнение
-   `WDTT Tailscale Gateway (experimental)`.
-4. Установите аддон: Docker-сборка **потребует интернет и доступ к GitHub/Go modules**.
-   Поддерживаются `amd64` и `aarch64`; скачивание может не работать при белых списках.
-5. Сначала оставьте `connection_mode: off` и `route_tailscale: false`.
-6. Для проверки WDTT заполните `peer` (VPS `IP:PORT`), `password`, `vk_hashes`
-   (до четырёх VK ссылок `/call/join/...` либо хешей), `device_id` (стабильный ID),
-   `connection_mode: always`, **но всё ещё** `route_tailscale: false`.
-   Запустите аддон и проверьте логи `wdttd` на статус `connected`.
-7. Если WDTT поднимается и есть **локальный** доступ, переключите **в настройках
-   существующего Tailscale-аддона** `userspace_networking: false`. Перезапустите
-   Tailscale и убедитесь, что интерфейс `tailscale0` есть. Это может временно
-   прервать удалённое подключение.
-8. Только после этого выставьте `route_tailscale: true`. Проверьте наличие
-   маршрута по метке через `wg-wdtt`. Контроллер тестирует TCP через
-   VPN и удаляет правило, если тест не прошёл.
-9. Переведите `connection_mode: auto`: при последовательных сбоях прямого TCP
-   подключения к контрольным адресам активируется WDTT, после устойчивого
-   восстановления выключается.
+[![Добавить репозиторий в Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FTechPriest48%2Fhaos-wdtt-tailscale)
+
+**[Добавить репозиторий WDTT в Home Assistant](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FTechPriest48%2Fhaos-wdtt-tailscale)** — кнопка откроет
+Home Assistant и подставит адрес репозитория. Подтвердите добавление, затем
+найдите **WDTT Tailscale Gateway (experimental)** в Магазине приложений и
+нажмите «Установить». Копировать файлы в `/addons` и запускать Docker вручную
+**не требуется**.
+
+Если кнопка не сработала, добавьте вручную:
+
+1. Home Assistant → **Настройки → Приложения → Установить приложение**
+   (или «Дополнения → Магазин»).
+2. Меню **⋮ → Репозитории** → вставьте **`https://github.com/TechPriest48/haos-wdtt-tailscale`** → **Добавить**.
+3. Обновите магазин, откройте «WDTT Tailscale Gateway (experimental)» и установите аддон.
+4. После установки откройте веб-панель. Не включайте маршрутизацию
+   Tailscale до успешного теста WDTT и проверки локального доступа.
+
+**Первый запуск:** `connection_mode: off`, `route_tailscale: false`.
+Установка собирает Go-клиент на самом HAOS и требует доступ к GitHub и Go
+modules. Отдельного готового контейнерного образа пока нет. Поддерживаются
+`amd64` и `aarch64`. Сборка и реальная работа на HAOS ещё не испытаны.
+
+## Порядок безопасной настройки
+
+1. Создайте резервную копию HA и проверьте доступ к веб-интерфейсу HA
+   **через локальную сеть**, независимо от Tailscale.
+2. Заполните IP/домен и порт VPS, пароль WDTT, 1–4 VK-хеша и стабильный
+   `device_id` в веб-панели аддона.
+3. С `route_tailscale: false` выберите `connection_mode: always` и проверьте
+   журнал: WDTT должен успешно создать туннель `wg-wdtt`.
+4. Имея локальный доступ к Home Assistant, при необходимости переключите
+   существующий Tailscale-аддон на `userspace_networking: false`. Проверьте
+   появление `tailscale0`.
+5. Только после успешного теста туннеля включайте `route_tailscale: true`;
+   убедитесь, что трафик Tailscale действительно идёт через WDTT, а обычный
+   интернет HAOS не изменился.
+6. Для автоматического подключения при ограничениях провайдера выберите
+   `connection_mode: auto`. Проверки сети — эвристика, не сигнал оператора.
 
 ### Параметры
 
