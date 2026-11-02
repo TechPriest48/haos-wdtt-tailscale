@@ -1,6 +1,6 @@
 name: "WDTT Tailscale Gateway (experimental)"
 slug: "wdtt_tailscale"
-version: "0.3.1"
+version: "0.4.0"
 description: "WDTT tunnel with opt-in policy routing for Tailscale transport on HAOS"
 url: "https://github.com/TechPriest48/haos-wdtt-tailscale"
 arch:
@@ -17,10 +17,9 @@ panel_title: WDTT
 panel_icon: mdi:shield-lock
 privileged:
   - NET_ADMIN
-  - NET_RAW
-# Local custom add-on: host networking and routing require a permissive profile.
-# Do not expose to untrusted users.
-apparmor: false
+# NET_ADMIN is required for WireGuard and policy routing; default AppArmor enabled.
+# Privileged UI binds only to the internal Supervisor bridge address.
+apparmor: true
 options:
   connection_mode: "off"
   peer: ""
