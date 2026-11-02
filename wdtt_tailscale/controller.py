@@ -29,11 +29,20 @@ PRIORITY = "4990"   # before Tailscale's 52xx rules
 TS_MARK = "0x80000/0xff0000"
 SO_MARK_VALUE = 0x80000
 TEST_TARGETS = (("1.1.1.1", 443), ("9.9.9.9", 443))
+# Throw routes let marked packets headed for LAN use the normal main table.
+LAN_BYPASS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16")
+OWNED_LINK = Path(os.getenv("WDTT_OWNED_LINK", "/data/wg-wdtt-owned.json"))
+SECRET_VALUES: set[str] = set()
+
 JOURNAL = deque(maxlen=300)
 JOURNAL_LOCK = threading.RLock()
 
 
 def note(msg: str) -> None:
+    # Redact errors too, not just stdout lines emitted by the Go daemon.
+    for secret in tuple(SECRET_VALUES):
+        if secret:
+            msg = msg.replace(secret, "[REDACTED]")
     line = "[WDTT-HAOS] " + msg
     with JOURNAL_LOCK:
         JOURNAL.append(line[:1000])
@@ -126,16 +135,33 @@ class Opts:
         if mode == "auto":
             if len(hosts) < 2 or any(not re.fullmatch(r"[a-zA-Z0-9.-]+", h) for h in hosts):
                 raise ValueError("configure at least two probe hostnames")
-        workers = int(raw.get("workers", 9))
-        mtu = int(raw.get("mtu", 1240))
-        interval = int(raw.get("check_interval", 20))
-        failures = int(raw.get("failure_threshold", 3))
-        recovery_seconds = int(raw.get("recovery_seconds", 300))
+        def strict_int(key: str, default: int) -> int:
+            value = raw.get(key, default)
+            if type(value) is not int:
+                raise ValueError(f"{key} must be an integer")
+            return value
+
+        workers = strict_int("workers", 9)
+        mtu = strict_int("mtu", 1240)
+        interval = strict_int("check_interval", 20)
+        failures = strict_int("failure_threshold", 3)
+        recovery_seconds = strict_int("recovery_seconds", 300)
+        def strict_bool(key: str, default: bool) -> bool:
+            value = raw.get(key, default)
+            if type(value) is not bool:
+                raise ValueError(f"{key} must be boolean (true/false), not a string")
+            return value
+        route_tailscale = strict_bool("route_tailscale", False)
+        block_ipv6 = strict_bool("route_ipv6_block", True)
+        if route_tailscale and not block_ipv6:
+            raise ValueError("route_ipv6_block must be enabled when routing Tailscale")
         turn_transport = str(raw.get("turn_transport", "udp"))
         obfs_mode = str(raw.get("obfs_mode", "audio"))
         vk_auth_mode = str(raw.get("vk_auth_mode", "vkcalls"))
         go_dns = str(raw.get("go_dns", "doh-yandex"))
-        if workers < 9 or workers > 108 or mtu < 1100 or mtu > 1420 or interval < 10 or failures < 1 or recovery_seconds < 60:
+        if (workers < 9 or workers > 108 or mtu < 1100 or mtu > 1420
+                or interval < 10 or interval > 300 or failures < 1 or failures > 15
+                or recovery_seconds < 60 or recovery_seconds > 3600):
             raise ValueError("numeric config out of bounds")
         if turn_transport not in ("udp", "tcp"):
             raise ValueError("turn_transport must be udp|tcp")
@@ -146,7 +172,7 @@ class Opts:
         if go_dns not in ("doh-yandex", "doh-cloudflare", "yandex"):
             raise ValueError("unsupported VK API DNS mode")
         return cls(mode, peer, password, hashes, device_id, workers, mtu, turn_transport, obfs_mode, vk_auth_mode, go_dns, hosts, interval,
-                   failures, recovery_seconds, bool(raw.get("route_tailscale", False)), bool(raw.get("route_ipv6_block", True)))
+                   failures, recovery_seconds, route_tailscale, block_ipv6)
 
 
 def write_uci(opts: Opts) -> None:
@@ -173,9 +199,17 @@ def write_uci(opts: Opts) -> None:
         "",
     ))
     tmp = UCI_PATH.with_suffix(".tmp")
-    with tmp.open("w", encoding="utf8") as f:
-        f.write(content)
-    tmp.chmod(0o600)
+    # Set permissions BEFORE writing the secret; default umask could expose it.
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     tmp.replace(UCI_PATH)
 
 
@@ -210,7 +244,11 @@ def recover_stale_rules(block_ipv6: bool) -> None:
     if v6_rule and not matching_owned_rule("-6"):
         note("WARN: IPv6 priority 4990 owned by another service, not touching it")
         return
-    if v4_route and not all("dev wg-wdtt" in x and x.lstrip().startswith("default ") for x in v4_route.splitlines()):
+    if v4_route and not all(
+        ("dev wg-wdtt" in x and x.lstrip().startswith("default "))
+        or any(x.lstrip().startswith("throw " + net) for net in LAN_BYPASS)
+        for x in v4_route.splitlines()
+    ):
         note("WARN: routing table 7477 has foreign IPv4 routes; not touching it")
         return
     if v6_route and not all(x.lstrip().startswith("unreachable default") for x in v6_route.splitlines()):
@@ -244,6 +282,8 @@ class Routes:
         if conflict:
             raise RuntimeError(conflict)
         try:
+            for network in LAN_BYPASS:
+                cmd("ip", "-4", "route", "add", "throw", network, "table", TABLE)
             cmd("ip", "-4", "route", "add", "default", "dev", IFACE, "table", TABLE)
             if self.ipv6:
                 cmd("ip", "-6", "route", "add", "unreachable", "default", "table", TABLE)
@@ -269,6 +309,8 @@ class Routes:
                 continue
             cmd("ip", ver, "rule", "del", "pref", PRIORITY, "fwmark", TS_MARK, "lookup", TABLE, check=False)
         cmd("ip", "-4", "route", "del", "default", "dev", IFACE, "table", TABLE, check=False)
+        for network in LAN_BYPASS:
+            cmd("ip", "-4", "route", "del", "throw", network, "table", TABLE, check=False)
         if self.ipv6:
             cmd("ip", "-6", "route", "del", "unreachable", "default", "table", TABLE, check=False)
         self.active = False
@@ -326,6 +368,47 @@ def marked_egress() -> bool:
     return any(tcp_probe(host, port, timeout=6.0, mark=True) for host, port in TEST_TARGETS)
 
 
+def owned_wireguard_link() -> bool:
+    """Never take over a link without persisted evidence that we created it."""
+    if not OWNED_LINK.exists() or not existing_link(IFACE):
+        return False
+    try:
+        record = json.loads(OWNED_LINK.read_text('utf8'))
+        if record.get('iface') != IFACE or record.get('kind') != 'wireguard':
+            return False
+        r = cmd('ip', '-d', 'link', 'show', 'dev', IFACE, check=False)
+        return r.returncode == 0 and bool(re.search(r'\bwireguard\b', r.stdout))
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def remove_owned_link() -> bool:
+    if not existing_link(IFACE):
+        OWNED_LINK.unlink(missing_ok=True)
+        return True
+    if not owned_wireguard_link():
+        note('Refusing to remove unknown wg-wdtt interface; manual inspection required')
+        return False
+    p = cmd('ip', 'link', 'del', IFACE, check=False)
+    if p.returncode == 0:
+        OWNED_LINK.unlink(missing_ok=True)
+        note('Removed stale owned WireGuard interface')
+        return True
+    return False
+
+
+def remember_owned_link() -> None:
+    if not existing_link(IFACE):
+        return
+    # This is called only while OUR child daemon is running and no link
+    # existed before it started. Persist a marker for crash recovery.
+    OWNED_LINK.parent.mkdir(parents=True, exist_ok=True)
+    tmp = OWNED_LINK.with_suffix('.tmp')
+    tmp.write_text(json.dumps({'iface': IFACE, 'kind': 'wireguard'}), encoding='utf8')
+    tmp.chmod(0o600)
+    os.replace(tmp, OWNED_LINK)
+
+
 class Gateway:
     def __init__(self, opts: Opts):
         self.opts = opts
@@ -354,15 +437,23 @@ class Gateway:
                 p.kill()
                 p.wait()
         self.started = None
+        # Daemon teardown is normally automatic; recover only interfaces
+        # previously observed as created by this add-on.
+        if existing_link(IFACE):
+            remove_owned_link()
+        else:
+            OWNED_LINK.unlink(missing_ok=True)
 
     def start_daemon(self) -> None:
         if self.process and self.process.poll() is None:
             return
         if existing_link(IFACE):
-            raise RuntimeError("wg-wdtt already exists; refusing to take over an existing interface")
+            if not remove_owned_link():
+                raise RuntimeError("wg-wdtt exists and is not owned by this add-on; refusing takeover")
         if time.monotonic() - self.last_attempt < 15:
             return
         self.last_attempt = time.monotonic()
+        # Only remember the link if we observe it while our child is alive.
         write_uci(self.opts)
         note(f"Starting upstream wdttd (peer={self.opts.peer}, mode=external)")
         self.process = subprocess.Popen(["/usr/local/bin/wdttd"], stdout=subprocess.PIPE,
@@ -426,11 +517,12 @@ class Gateway:
         if self.process and self.process.poll() is not None:
             note(f"wdttd exited ({self.process.returncode}); will retry")
             self.routes.disable()
-            self.process = None
-            self.started = None
+            self.stop_daemon()
         if not self.process:
             self.start_daemon()
             return
+        if existing_link(IFACE):
+            remember_owned_link()
         if not wdtt_ready():
             if self.routes.active:
                 self.routes.disable()
@@ -500,10 +592,19 @@ def main() -> int:
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         note("Configuration error: " + str(exc))
         return 2
+    SECRET_VALUES.clear()
+    SECRET_VALUES.update([opts.password, *opts.hashes.split(',')])
     recover_stale_rules(opts.block_ipv6)
+    # A prior process may have been killed before deleting its interface.
+    if OWNED_LINK.exists() and existing_link(IFACE):
+        remove_owned_link()
+    elif OWNED_LINK.exists() and not existing_link(IFACE):
+        OWNED_LINK.unlink(missing_ok=True)
     gateway = Gateway(opts)
     panel = PanelState(read_settings, JOURNAL)
-    webserver = WebServer(("0.0.0.0", 8765), panel, Opts.from_raw)
+    # HAOS host bridge address: NO listening socket on LAN/public interfaces.
+    # If missing, fail closed rather than exposing a privileged settings API.
+    webserver = WebServer(("172.30.32.1", 8765), panel, Opts.from_raw)
     thread = threading.Thread(target=webserver.serve_forever, daemon=True)
     thread.start()
     note("Control panel via Home Assistant Ingress (port 8765; Supervisor proxy only)")
@@ -521,6 +622,8 @@ def main() -> int:
                     replacement = Opts.load(OPTIONS_PATH)
                     gateway.stop()
                     gateway = Gateway(replacement)
+                    SECRET_VALUES.clear()
+                    SECRET_VALUES.update([replacement.password, *replacement.hashes.split(',')])
                     panel.reload.clear()
                     note("Settings applied; reconnection will follow selected mode")
                 except Exception as exc:
