@@ -14,8 +14,8 @@
 - Bind privileged web panel to internal HAOS bridge (172.30.32.1) only, rather
   than all interfaces. Keep Supervisor ingress IP restrictions.
 - Restore default AppArmor protection and drop unnecessary NET_RAW capability.
-- Redact configured secrets in controller journal and write UCI file 0600
-  before persisting secret content.
+- Redact configured secrets in controller journal, and write both UCI config
+  and web UI secret override files 0600 before persisting secret content.
 - Add targeted unit tests for rejection paths, route separation, and recovery.
 
 **Not yet passed:** live HAOS build, AppArmor permission check, VPS
