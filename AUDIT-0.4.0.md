@@ -10,14 +10,14 @@
 | Сеть: автоопределение белых списков | Эвристика | Эвристика | TCP probes напрямую, hysteresis | Нельзя достоверно определить состояние Tailscale |
 | Безопасность: криптография | Не полностью проверена | Частично | WireGuard + WRAP AEAD; исходник DTLS содержит `InsecureSkipVerify: true` | Нужна проверка идентичности VPS/сильный пароль, совместимая с оригинальным сервером |
 | Безопасность: привилегии | Широкие | Снижены | Убран NET_RAW, AppArmor включён; NET_ADMIN и host network остались | Компрометация аддона затронет сеть хоста |
-| Безопасность: панель и секреты | Риск LAN | Улучшено | Bind `172.30.32.1:8765` + ingress source IP, CSP-like headers, strict origin, secrets 0600, log redaction | Не тестировано на HAOS ingress bridge; возможна недоступность панели |
+| Безопасность: панель и секреты | Риск LAN | Улучшено | Bind `172.30.32.1:8765` + ingress source IP, CSP-like headers, strict origin, UCI/UI secrets 0600, log redaction | Не тестировано на HAOS ingress bridge; возможна недоступность панели |
 | Отказоустойчивость: зависший WireGuard | Ошибка | Исправлено в коде | OWNED_LINK marker, проверка типа, удаление только собственного iface | Первый сбой до записи marker потребует ручной проверки |
 | Отказоустойчивость: строковое `"false"` | Ошибка | Исправлено | Строгие bool/int, запрет отключать IPv6 защиту при маршрутизации | Нет реального теста восстановления WAN |
 | Отказоустойчивость: рестарт/обрыв | Частично | Улучшено | Cleanup, rollback, retry; unit tests | HAOS crash/power loss не испытаны |
 
 ## Результаты автоматических проверок
 
-- Локально: 23/23 Python unit tests (14 исходных + 9 новых), Node JS syntax и Python compile — успех.
+- Локально: 24/24 Python unit tests (14 исходных + 9 дополнительных + 1 тест приватности), Node JS syntax и Python compile — успех.
 - GitHub Actions CI: [успешный запуск](https://github.com/TechPriest48/haos-wdtt-tailscale/actions/runs/41453910240).
 - CI проверил Python tests, Python compile, JS syntax и Docker build **amd64** (включая Go клиент).
 - **НЕ проверено**: создание интерфейса в HAOS, AppArmor на HAOS, реальное соединение с
