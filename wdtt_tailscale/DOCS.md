@@ -1,6 +1,6 @@
 # WDTT Tailscale Gateway for HAOS
 
-**Status:** experimental pre-production build 0.4.0; no end-to-end HAOS/VPS test.
+**Status:** experimental pre-production build 0.4.1; no end-to-end HAOS/VPS test.
 
 1. Make a Home Assistant backup and verify **local LAN** access before touching routing.
 2. Add repository `https://github.com/TechPriest48/haos-wdtt-tailscale`
