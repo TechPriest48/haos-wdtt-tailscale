@@ -1,12 +1,23 @@
 # Changelog
 
-## 0.3.1
+## 0.4.0 — security and routing hardening (unverified on HAOS)
 
-- Подключение репозитория аддонов HAOS из GitHub по кнопке My Home Assistant.
-- Установка через магазин приложений — основной способ; локальная установка не требуется.
-- Имя slug согласовано с папкой аддона; добавлены DOCS.md и experimental stage.
+- Patch pinned upstream WDTT so `routing_mode=external` does not add any
+  VK/TURN/DNS/VPS routes to the HAOS main routing table. Build fails closed
+  if the patch no longer matches the upstream source.
+- Treat route toggles as strict JSON booleans; enforce IPv6 fail-closed rule
+  when routing is enabled. Prevent invalid numeric settings.
+- Add throw routes in WDTT policy table for local IPv4 networks so marked
+  LAN endpoints use regular host routing; never replace host default route.
+- Track owned WireGuard interface across crashes; refuse takeover/deletion of
+  unowned network interfaces.
+- Bind privileged web panel to internal HAOS bridge (172.30.32.1) only, rather
+  than all interfaces. Keep Supervisor ingress IP restrictions.
+- Restore default AppArmor protection and drop unnecessary NET_RAW capability.
+- Redact configured secrets in controller journal and write UCI file 0600
+  before persisting secret content.
+- Add targeted unit tests for rejection paths, route separation, and recovery.
 
-## 0.3.0
-
-- Веб-панель WDTT клиента, VK-хеши, параметры VPS, диагностика и режимы Tailscale.
-- Экспериментальный контроллер wdttd с отключённой по умолчанию маршрутизацией.
+**Not yet passed:** live HAOS build, AppArmor permission check, VPS
+handshake, Tailscale interoperation, forced power loss, full packet captures.
+This remains EXPERIMENTAL and is not production-approved.
