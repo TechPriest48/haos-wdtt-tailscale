@@ -73,9 +73,16 @@ class PanelState:
             validator(validated)
             SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
             tmp = SETTINGS_PATH.with_suffix('.tmp')
-            with tmp.open('w', encoding='utf8') as f:
-                json.dump(changed, f, ensure_ascii=False, indent=2)
-            os.chmod(tmp, 0o600)
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            try:
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, 'w', encoding='utf8') as f:
+                    json.dump(changed, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+            except BaseException:
+                tmp.unlink(missing_ok=True)
+                raise
             os.replace(tmp, SETTINGS_PATH)
             self.reload.set()
         return self.settings()
