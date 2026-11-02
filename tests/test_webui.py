@@ -68,6 +68,12 @@ class WebTests(unittest.TestCase):
             self.assertEqual(data['output'],'ok')
             self.assertFalse(run.call_args.kwargs['shell'])
 
+    def test_secret_settings_file_permissions(self):
+        code, _ = self.request('POST', '/api/settings', {'password': 'a-long-private-secret'})
+        self.assertEqual(code, 200)
+        path = Path(self.tmp.name) / 'override.json'
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
     def test_settings_writes_video_and_cloudflare(self):
         status,_=self.request('POST','/api/settings',{'obfs_mode':'audio','go_dns':'doh-yandex'})
         self.assertEqual(status,200)
