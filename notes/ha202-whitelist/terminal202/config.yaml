@@ -1,0 +1,17 @@
+name: "Терминал 202"
+version: "1.0.0"
+slug: "terminal202"
+description: "Отдельный веб-терминал с SSH на Home Assistant 202 через Tailscale"
+arch:
+  - amd64
+init: false
+startup: services
+boot: auto
+ingress: true
+ingress_port: 7681
+ingress_stream: true
+panel_icon: mdi:console-network
+panel_title: "Терминал 202"
+panel_admin: true
+options: {}
+schema: {}
