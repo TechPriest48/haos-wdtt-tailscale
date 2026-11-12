@@ -1,5 +1,5 @@
 name: "CSQTT — туннель"
-version: "0.1.0"
+version: "0.1.1"
 slug: csqtt_native
 description: "CSQTT SOCKS5 as a standalone Home Assistant OS app"
 arch:
