@@ -1,0 +1,18 @@
+name: "CSQTT — управление"
+version: "0.1.0"
+slug: csqtt_manager
+description: "Безопасное изменение csqtt:// для уже работающего csq-socks"
+arch:
+  - amd64
+init: false
+boot: manual
+stage: experimental
+startup: services
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:shield-key-outline
+panel_title: CSQTT
+panel_admin: true
+docker_api: true
+options: {}
+schema: {}
