@@ -1,0 +1,26 @@
+name: "CSQTT — туннель"
+version: "0.1.0"
+slug: csqtt_native
+description: "CSQTT SOCKS5 as a standalone Home Assistant OS app"
+arch:
+  - amd64
+init: false
+startup: services
+boot: manual
+stage: experimental
+ingress: true
+ingress_port: 0
+panel_title: CSQTT
+panel_icon: mdi:vpn
+panel_admin: true
+host_network: true
+hassio_api: true
+privileged:
+  - NET_ADMIN
+  - SYS_ADMIN
+devices:
+  - /dev/net/tun
+options:
+  auto_start: false
+schema:
+  auto_start: bool
